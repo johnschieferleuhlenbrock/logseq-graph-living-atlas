@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { performance } from "node:perf_hooks";
 import test from "node:test";
 import {
   buildSnapshot,
@@ -73,6 +74,33 @@ test("pathSnapshot reports missing endpoints and bounded searches", () => {
   const unresolved = pathSnapshot(snapshot, "A", "C", 2);
   assert.equal(unresolved.ok, false);
   assert.equal(unresolved.error, "no path within depth");
+});
+
+test("pathSnapshot bounds dense high-fanout no-path searches", () => {
+  const branch = 120;
+  const nodes = [
+    graphNode("from"),
+    graphNode("to"),
+    ...Array.from({ length: branch }, (_, index) => graphNode(`a${index}`)),
+    ...Array.from({ length: branch }, (_, index) => graphNode(`b${index}`))
+  ];
+  const links = [];
+  let linkIndex = 0;
+  const addLink = (source, target) => links.push({ id: `l${linkIndex++}`, source, target, kind: "wikilink", weight: 1 });
+  for (let index = 0; index < branch; index += 1) addLink("from", `a${index}`);
+  for (let a = 0; a < branch; a += 1) {
+    for (let b = 0; b < branch; b += 1) {
+      addLink(`a${a}`, `b${b}`);
+      addLink(`b${b}`, `a${a}`);
+    }
+  }
+  for (const node of nodes) node.total = links.filter((link) => link.source === node.id || link.target === node.id).length;
+  const started = performance.now();
+  const result = pathSnapshot({ generatedAt: new Date().toISOString(), nodes, links }, "from", "to", 12);
+  const elapsedMs = performance.now() - started;
+  assert.equal(result.ok, false);
+  assert.ok(elapsedMs < 1000, `dense no-path search should stay bounded, took ${Math.round(elapsedMs)}ms`);
+  assert.ok(result.explored <= nodes.length);
 });
 
 test("searchSnapshot searches the full graph and reports omitted matches", () => {
@@ -236,6 +264,24 @@ test("readPageRecords parses Logseq pages and journals", () => {
   assert.ok(manifest.fingerprint);
 });
 
+test("readPageRecords rejects top-level source directories that resolve outside the graph root", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "living-atlas-source-containment-"));
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "living-atlas-outside-"));
+  try {
+    fs.writeFileSync(path.join(outside, "Secret.md"), "type:: project\n- private\n", "utf8");
+    try {
+      fs.symlinkSync(outside, path.join(root, "pages"), "dir");
+    } catch (error) {
+      if (error && ["EPERM", "EACCES", "ENOTSUP"].includes(error.code)) return;
+      throw error;
+    }
+    assert.throws(() => readPageRecords(root), /pages directory resolves outside/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(outside, { recursive: true, force: true });
+  }
+});
+
 test("readGraphManifest fingerprint changes for same-size timestamp-preserving rewrites", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "living-atlas-manifest-content-"));
   try {
@@ -365,4 +411,28 @@ test("connectorCandidates suppresses adequately connected cluster pairs", () => 
 
 function page(name, text, isoTime) {
   return parsePageRecord(`/tmp/${name}.md`, text, { mtimeMs: Date.parse(isoTime) });
+}
+
+function graphNode(id) {
+  return {
+    id,
+    name: id,
+    type: "project",
+    tags: [],
+    status: "",
+    source: "",
+    confidence: "",
+    updatedAt: "2026-05-30T12:00:00.000Z",
+    in: 0,
+    out: 0,
+    total: 0,
+    cluster: "dense",
+    clusterLabel: "Dense",
+    x: 0,
+    y: 0,
+    z: 0,
+    size: 1,
+    heat: 0,
+    color: "#fff"
+  };
 }

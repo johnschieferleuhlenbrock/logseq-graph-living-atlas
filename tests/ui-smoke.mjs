@@ -308,7 +308,7 @@ try {
     return raw ? JSON.parse(raw) : {};
   });
   assert.ok(Object.values(queuedFlag).some((flag) => flag.nodeRef && !flag.relativePath && !flag.name && !flag.nodeId), "review flag should persist a graph-local reference without page names or source paths");
-  assert.ok(Object.values(queuedFlag).some((flag) => flag.role && flag.why && flag.next), "review flag should persist Atlas Intelligence handoff context");
+  assert.ok(Object.values(queuedFlag).some((flag) => flag.role && !flag.why && !flag.next), "review flag should persist only generic Atlas role context");
   await page.getByRole("button", { name: "Open review flag Project Orion" }).click();
   await expectText(page, "pages/Project Orion.md");
   await expectText(page, "Atlas Intelligence");

@@ -58,6 +58,7 @@ export function readGraphManifest(root = DEFAULT_LOGSEQ_ROOT) {
 
 export function readLogseqMarkdownFiles(root = DEFAULT_LOGSEQ_ROOT) {
   if (!root) throw new Error("LOGSEQ_ROOT or --root is required. Point it at a Logseq graph folder containing pages/.");
+  const realRoot = fs.realpathSync(root);
   const pagesDir = path.join(root, "pages");
   if (!fs.existsSync(pagesDir)) {
     throw new Error("Logseq pages directory not found under the configured graph root.");
@@ -66,7 +67,11 @@ export function readLogseqMarkdownFiles(root = DEFAULT_LOGSEQ_ROOT) {
   for (const sourceDir of LOGSEQ_SOURCE_DIRS) {
     const directory = path.join(root, sourceDir);
     if (!fs.existsSync(directory)) continue;
-    collectMarkdownFiles(directory, files, root);
+    const realDirectory = fs.realpathSync(directory);
+    if (!isRealpathInsideDirectory(realRoot, realDirectory)) {
+      throw new Error(`Logseq ${sourceDir} directory resolves outside the configured graph root.`);
+    }
+    collectMarkdownFiles(directory, files, root, realRoot);
   }
   const maxFiles = positiveInteger(process.env.LIVING_ATLAS_MAX_FILES, DEFAULT_MAX_MARKDOWN_FILES);
   if (files.length > maxFiles) {
@@ -76,23 +81,33 @@ export function readLogseqMarkdownFiles(root = DEFAULT_LOGSEQ_ROOT) {
   return files;
 }
 
-function collectMarkdownFiles(directory, files, root) {
+function collectMarkdownFiles(directory, files, root, realRoot) {
   for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
     const filePath = path.join(directory, entry.name);
     if (entry.name.startsWith(".") || entry.name === "node_modules") continue;
+    if (entry.isSymbolicLink()) continue;
     if (entry.isDirectory()) {
-      collectMarkdownFiles(filePath, files, root);
+      const realDirectory = fs.realpathSync(filePath);
+      if (!isRealpathInsideDirectory(realRoot, realDirectory)) continue;
+      collectMarkdownFiles(filePath, files, root, realRoot);
       continue;
     }
     if (entry.isFile() && entry.name.endsWith(".md")) {
+      const realFilePath = fs.realpathSync(filePath);
+      if (!isRealpathInsideDirectory(realRoot, realFilePath)) continue;
       const maxBytes = positiveInteger(process.env.LIVING_ATLAS_MAX_FILE_BYTES, DEFAULT_MAX_MARKDOWN_FILE_BYTES);
-      const stat = fs.statSync(filePath);
+      const stat = fs.statSync(realFilePath);
       if (stat.size > maxBytes) {
         throw new Error(`Logseq markdown file is too large for indexing: ${path.relative(root, filePath)}. Set LIVING_ATLAS_MAX_FILE_BYTES to override or use --debug-paths for full diagnostics.`);
       }
       files.push(filePath);
     }
   }
+}
+
+function isRealpathInsideDirectory(realDirectory, candidateRealpath) {
+  const relative = path.relative(realDirectory, candidateRealpath);
+  return relative === "" || Boolean(relative) && !relative.startsWith("..") && !path.isAbsolute(relative);
 }
 
 function assertUniqueRecordIds(records) {

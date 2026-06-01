@@ -106,6 +106,7 @@ export function validatePathResult(result, context = "path") {
     if (result.missing !== undefined) assertArray(result.missing, `${context}.missing`);
     if (result.maxDepth !== undefined) assertNumber(result.maxDepth, `${context}.maxDepth`);
     if (result.explored !== undefined) assertNumber(result.explored, `${context}.explored`);
+    if (result.budgetExceeded !== undefined) assertBoolean(result.budgetExceeded, `${context}.budgetExceeded`);
     return result;
   }
   validateNode(result.from, `${context}.from`);

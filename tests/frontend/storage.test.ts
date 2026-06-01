@@ -3,7 +3,9 @@ import test from "node:test";
 import {
   clearLivingAtlasLocalData,
   clearLivingAtlasSessionToken,
+  persistAtlasDisplaySettings,
   persistReviewFlags,
+  readAtlasDisplaySettings,
   readReviewFlags,
   reviewFlagRefForNode,
   reviewStorageGraphKey,
@@ -64,7 +66,7 @@ test("review storage migrates legacy fingerprint buckets into the stable graph k
   });
 });
 
-test("new review flags persist only hashed node references and handoff context", () => {
+test("new review flags persist only hashed node references and generic role", () => {
   const localStorage = new MemoryStorage();
   const sessionStorage = new MemoryStorage();
   withWindow(localStorage, sessionStorage, () => {
@@ -86,9 +88,34 @@ test("new review flags persist only hashed node references and handoff context",
     const stored = JSON.parse(localStorage.getItem("living-atlas-review-flags:graph:stable") || "{}");
     assert.equal(stored[nodeRef].nodeRef, nodeRef);
     assert.equal(stored[nodeRef].role, "Connector");
+    assert.equal(stored[nodeRef].why, undefined);
+    assert.equal(stored[nodeRef].next, undefined);
     assert.equal(stored[nodeRef].name, undefined);
     assert.equal(stored[nodeRef].relativePath, undefined);
     assert.equal(stored[nodeRef].nodeId, undefined);
+    assert.doesNotMatch(JSON.stringify(stored), /Project Orion|pages\/Project Orion|Fixture|Review/);
+  });
+});
+
+test("display settings do not persist graph-derived top-level cluster ids", () => {
+  const localStorage = new MemoryStorage();
+  const sessionStorage = new MemoryStorage();
+  withWindow(localStorage, sessionStorage, () => {
+    persistAtlasDisplaySettings({
+      showGroupNames: false,
+      edgeDensity: "dense",
+      linkDirection: "outbound",
+      minLinkWeight: 0.4,
+      layoutMode: "compact",
+      motionMode: "quiet",
+      topLevelClusterIds: ["Project Orion", "people"]
+    });
+    const raw = localStorage.getItem("living-atlas-display-settings") || "{}";
+    assert.doesNotMatch(raw, /Project Orion|people/);
+    const stored = JSON.parse(raw);
+    assert.equal(stored.topLevelClusterIds, null);
+    assert.equal(readAtlasDisplaySettings().topLevelClusterIds, null);
+    assert.equal(readAtlasDisplaySettings().edgeDensity, "dense");
   });
 });
 
