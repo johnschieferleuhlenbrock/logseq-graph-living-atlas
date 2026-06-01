@@ -1,6 +1,6 @@
 {
   "name": "logseq-graph-living-atlas",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Local-only cinematic 3D atlas and read-only index service for Logseq markdown graphs.",
   "license": "MIT",
   "type": "module",

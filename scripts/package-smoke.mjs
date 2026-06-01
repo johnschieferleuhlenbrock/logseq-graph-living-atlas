@@ -67,6 +67,34 @@ try {
   if (packageVersion !== version) throw new Error(`package-name bin version mismatch: ${packageVersion} !== ${version}`);
   const help = execFileSync(binPath, ["--help"], { cwd: installDir, encoding: "utf8" });
   if (!help.includes("Usage:")) throw new Error("help output did not include usage text");
+  if (!help.includes("logseq-graph-living-atlas doctor")) throw new Error("help output did not include maintenance commands");
+  const doctor = JSON.parse(execFileSync(packageBinPath, ["doctor", "--json"], {
+    cwd: installDir,
+    encoding: "utf8",
+    env: { ...process.env, LOGSEQ_UPDATE_SKIP_NETWORK: "1" }
+  }));
+  if (doctor.package !== "logseq-graph-living-atlas" || doctor.command !== "logseq-graph-living-atlas") {
+    throw new Error(`unexpected doctor payload: ${JSON.stringify(doctor)}`);
+  }
+  const update = JSON.parse(execFileSync(packageBinPath, ["update", "--check", "--json"], {
+    cwd: installDir,
+    encoding: "utf8",
+    env: { ...process.env, LOGSEQ_UPDATE_LATEST_VERSION: "99.0.0" }
+  }));
+  if (update.package !== "logseq-graph-living-atlas" || update.outdated !== true) {
+    throw new Error(`unexpected update payload: ${JSON.stringify(update)}`);
+  }
+  if (update.next !== "npm install -g logseq-graph-living-atlas@latest") {
+    throw new Error(`default update guidance did not target latest: ${JSON.stringify(update)}`);
+  }
+  const betaUpdate = JSON.parse(execFileSync(packageBinPath, ["update", "--dry-run", "--channel", "beta", "--json"], {
+    cwd: installDir,
+    encoding: "utf8",
+    env: { ...process.env, LOGSEQ_UPDATE_LATEST_VERSION: "99.0.0" }
+  }));
+  if (betaUpdate.channel !== "beta" || betaUpdate.next !== "npm install -g logseq-graph-living-atlas@beta") {
+    throw new Error(`channel update guidance did not target beta: ${JSON.stringify(betaUpdate)}`);
+  }
 
   const port = await getFreePort();
   const service = spawn(binPath, ["--demo", "--port", String(port)], {

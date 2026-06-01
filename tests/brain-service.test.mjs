@@ -6,16 +6,153 @@ import os from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import test from "node:test";
+import { buildDoctorReport, runUpdate } from "../server/cli-maintenance.mjs";
 import { createFixtureGraph } from "../server/fixture/create-fixture-graph.mjs";
 import { parsePageRecord } from "../server/logseq/parser.mjs";
 import { createBrainService, DEFAULT_SNAPSHOT_NODE_BUDGET } from "../server/service.mjs";
 
+function maintenanceOptions(overrides = {}) {
+  return {
+    command: "update",
+    apply: false,
+    check: false,
+    dryRun: false,
+    help: false,
+    json: true,
+    channel: "latest",
+    root: "",
+    ...overrides
+  };
+}
+
+function createWritableCapture() {
+  let output = "";
+  return {
+    stream: {
+      write(chunk) {
+        output += String(chunk);
+        return true;
+      }
+    },
+    read() {
+      return output;
+    }
+  };
+}
+
 test("brain service CLI exposes help and version without requiring a graph root", () => {
   const help = execFileSync(process.execPath, ["server/brain-service.mjs", "--help"], { encoding: "utf8" });
   assert.match(help, /Usage:/);
+  assert.match(help, /logseq-graph-living-atlas doctor/);
   assert.match(help, /npx logseq-graph-living-atlas --root/);
   const version = execFileSync(process.execPath, ["server/brain-service.mjs", "--version"], { encoding: "utf8" }).trim();
   assert.match(version, /^\d+\.\d+\.\d+/);
+});
+
+test("logseq-graph-living-atlas CLI exposes doctor and update maintenance commands", () => {
+  const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
+  const doctor = spawnSync(process.execPath, ["server/brain-service.mjs", "doctor", "--json"], {
+    encoding: "utf8",
+    env: { ...process.env, LOGSEQ_UPDATE_SKIP_NETWORK: "1" }
+  });
+  const hasStaticBuild = fs.existsSync(path.join("dist", "index.html"));
+  assert.equal(doctor.status, hasStaticBuild ? 0 : 1, doctor.stderr);
+  const doctorReport = JSON.parse(doctor.stdout);
+  assert.equal(doctorReport.package, "logseq-graph-living-atlas");
+  assert.equal(doctorReport.command, "logseq-graph-living-atlas");
+  assert.equal(doctorReport.version, packageJson.version);
+  assert.equal(doctorReport.install.mode, "source");
+  assert.equal(doctorReport.checks.some((check) => check.name === "package metadata" && check.ok), true);
+  const staticBuildCheck = doctorReport.checks.find((check) => check.name === "static build");
+  assert.equal(staticBuildCheck.ok, hasStaticBuild);
+
+  const update = spawnSync(process.execPath, ["server/brain-service.mjs", "update", "--check", "--json"], {
+    encoding: "utf8",
+    env: { ...process.env, LOGSEQ_UPDATE_LATEST_VERSION: "99.0.0" }
+  });
+  assert.equal(update.status, 0, update.stderr);
+  const updateReport = JSON.parse(update.stdout);
+  assert.equal(updateReport.package, "logseq-graph-living-atlas");
+  assert.equal(updateReport.latest, "99.0.0");
+  assert.equal(updateReport.outdated, true);
+  assert.equal(updateReport.next, "git pull && npm install && npm run check");
+
+  const apply = spawnSync(process.execPath, ["server/brain-service.mjs", "update", "--apply"], {
+    encoding: "utf8",
+    env: { ...process.env, LOGSEQ_UPDATE_LATEST_VERSION: "99.0.0" }
+  });
+  assert.equal(apply.status, 78);
+  assert.match(apply.stderr, /Source checkout detected/);
+});
+
+test("doctor reports a missing packaged static build as failed", () => {
+  const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
+  const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "living-atlas-missing-static-"));
+  try {
+    const report = buildDoctorReport({
+      packageJson,
+      packageRoot,
+      modulePath: path.join(packageRoot, "server", "brain-service.mjs"),
+      root: "",
+      env: { ...process.env, LOGSEQ_UPDATE_SKIP_NETWORK: "1" }
+    });
+    const staticBuildCheck = report.checks.find((check) => check.name === "static build");
+    assert.equal(staticBuildCheck.ok, false);
+    assert.match(staticBuildCheck.detail, /dist\/index\.html missing/);
+    assert.equal(report.ok, false);
+  } finally {
+    fs.rmSync(packageRoot, { recursive: true, force: true });
+  }
+});
+
+test("update guidance and apply use the selected npm channel", () => {
+  const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
+  const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "living-atlas-update-channel-"));
+  const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), "living-atlas-fake-npm-"));
+  const npmArgsPath = path.join(fakeBin, "npm-args.txt");
+  const npmBin = path.join(fakeBin, process.platform === "win32" ? "npm.cmd" : "npm");
+  const modulePath = path.join(packageRoot, "node_modules", packageJson.name, "server", "brain-service.mjs");
+  try {
+    fs.writeFileSync(npmBin, `#!/bin/sh\nprintf '%s\\n' "$@" > ${JSON.stringify(npmArgsPath)}\n`, { mode: 0o755 });
+
+    const dryRunOutput = createWritableCapture();
+    const dryRunStatus = runUpdate({
+      packageJson,
+      packageRoot,
+      modulePath,
+      options: maintenanceOptions({ dryRun: true, channel: "beta" }),
+      env: { ...process.env, LOGSEQ_UPDATE_LATEST_VERSION: "2.0.0" },
+      stdout: dryRunOutput.stream
+    });
+    assert.equal(dryRunStatus, 0);
+    const dryRun = JSON.parse(dryRunOutput.read());
+    assert.equal(dryRun.channel, "beta");
+    assert.equal(dryRun.next, `npm install -g ${packageJson.name}@beta`);
+
+    const applyOutput = createWritableCapture();
+    const applyStatus = runUpdate({
+      packageJson,
+      packageRoot,
+      modulePath,
+      options: maintenanceOptions({ apply: true, channel: "beta" }),
+      env: {
+        ...process.env,
+        LOGSEQ_UPDATE_ALLOW_APPLY: "1",
+        LOGSEQ_UPDATE_LATEST_VERSION: "2.0.0",
+        PATH: `${fakeBin}${path.delimiter}${process.env.PATH || ""}`
+      },
+      stdout: applyOutput.stream
+    });
+    assert.equal(applyStatus, 0);
+    assert.deepEqual(fs.readFileSync(npmArgsPath, "utf8").trim().split("\n"), ["install", "-g", `${packageJson.name}@beta`]);
+    const apply = JSON.parse(applyOutput.read());
+    assert.equal(apply.channel, "beta");
+    assert.equal(apply.applied, true);
+    assert.match(apply.detail, /@beta/);
+  } finally {
+    fs.rmSync(packageRoot, { recursive: true, force: true });
+    fs.rmSync(fakeBin, { recursive: true, force: true });
+  }
 });
 
 test("brain service prints a concise startup error for invalid graph roots", () => {

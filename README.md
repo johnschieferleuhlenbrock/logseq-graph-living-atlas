@@ -86,9 +86,30 @@ Useful CLI checks:
 ```bash
 npx logseq-graph-living-atlas --help
 npx logseq-graph-living-atlas --version
+npx logseq-graph-living-atlas doctor
+npx logseq-graph-living-atlas update --check
 ```
 
-After a global install, both `living-atlas` and `logseq-graph-living-atlas` point at the same CLI.
+Use `logseq-graph-living-atlas` as the canonical command. The shorter `living-atlas` bin is kept as a convenience alias.
+
+### Maintenance Commands
+
+The Atlas CLI and the companion MCP CLI share the same maintenance shape:
+
+```bash
+logseq-graph-living-atlas doctor [--root /path/to/logseq] [--json]
+logseq-graph-living-atlas update [--check|--dry-run|--apply] [--channel latest] [--json]
+```
+
+`doctor` validates the local runtime, package metadata, install mode, packaged UI build, and optional graph root.
+
+`update` checks npm release metadata and prints install-mode-aware guidance. `--channel` defaults to `latest`; when another npm dist-tag is selected, package and npx guidance use that same tag:
+
+- source checkout: `git pull && npm install && npm run check`
+- npx execution: `npx logseq-graph-living-atlas@<channel>`
+- npm package install: `npm install -g logseq-graph-living-atlas@<channel>`
+
+Actual mutation requires `update --apply` plus `LOGSEQ_UPDATE_ALLOW_APPLY=1`. Source checkouts and npx runs refuse in-place mutation.
 
 `--root` must point at the graph folder, not the `pages/` folder itself.
 
