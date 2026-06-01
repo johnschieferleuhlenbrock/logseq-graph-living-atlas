@@ -62,10 +62,17 @@ function checkGitShape() {
     findings.push("git: repository is not initialized; initialize with the public branch named main");
     return;
   }
+  if (isTrustedPullRequestCheckout()) return;
   const branch = git(["branch", "--show-current"]).trim();
   if (branch === "main") return;
   if (!branch && isTrustedReleaseTagCheckout()) return;
   findings.push(`git: current branch must be main, found ${branch || "(detached)"}`);
+}
+
+function isTrustedPullRequestCheckout() {
+  return process.env.GITHUB_ACTIONS === "true" &&
+    process.env.GITHUB_EVENT_NAME === "pull_request" &&
+    process.env.GITHUB_BASE_REF === "main";
 }
 
 function checkPackageMetadata() {

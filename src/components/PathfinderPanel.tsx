@@ -74,6 +74,9 @@ function pathFailureDetail(result: Extract<AtlasPathResult, { ok: false }>) {
     const missing = result.missing?.join(" and ") || "endpoint";
     return `Missing ${missing}. Try exact page names from search suggestions.`;
   }
+  if (result.budgetExceeded) {
+    return `Path search stopped after checking ${result.explored || 0} reachable pages. Narrow the endpoints or reduce graph fanout.`;
+  }
   if (result.error === "no path within depth") {
     return `No path found within ${result.maxDepth || 7} hops after checking ${result.explored || 0} reachable pages.`;
   }

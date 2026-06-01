@@ -31,6 +31,7 @@ const reviewFlagStorageKey = "living-atlas-review-flags";
 const displaySettingsStorageKey = "living-atlas-display-settings";
 const firstRunStorageKey = "living-atlas-first-run-dismissed";
 const apiTokenStorageKey = "living-atlas-api-token";
+const storedReviewRoles = new Set(["Needs Review", "Connector", "Hub", "Isolated", "Endpoint", "Cluster Core"]);
 
 export const defaultDisplaySettings: AtlasDisplaySettings = {
   showGroupNames: true,
@@ -170,13 +171,12 @@ function sanitizeReviewFlagsForStorage(flags: Record<string, ReviewFlag>, graphK
   for (const [id, flag] of Object.entries(flags)) {
     if (!flag) continue;
     const nodeRef = flag.nodeRef || reviewFlagRefForNode(graphKey, flag.nodeId || flag.id || flag.relativePath || flag.name || flag.createdAt || id);
+    const role = sanitizeReviewRole(flag.role);
     sanitized[nodeRef] = {
       id: nodeRef,
       nodeRef,
       createdAt: flag.createdAt,
-      role: flag.role,
-      why: flag.why,
-      next: flag.next
+      ...(role ? { role } : {})
     };
   }
   return sanitized;
@@ -199,10 +199,12 @@ function normalizeAtlasDisplaySettings(raw: Record<string, unknown>): AtlasDispl
     minLinkWeight: clampNumber(raw.minLinkWeight, 0, 1, defaultDisplaySettings.minLinkWeight),
     layoutMode: isLayoutMode(raw.layoutMode) ? raw.layoutMode : defaultDisplaySettings.layoutMode,
     motionMode: isMotionMode(raw.motionMode) ? raw.motionMode : defaultDisplaySettings.motionMode,
-    topLevelClusterIds: Array.isArray(raw.topLevelClusterIds)
-      ? raw.topLevelClusterIds.filter((item): item is string => typeof item === "string" && item.length > 0).slice(0, 40)
-      : null
+    topLevelClusterIds: null
   };
+}
+
+function sanitizeReviewRole(value: unknown) {
+  return typeof value === "string" && storedReviewRoles.has(value) ? value : "";
 }
 
 function isEdgeDensity(value: unknown): value is EdgeDensity {

@@ -1,6 +1,11 @@
 import { buildAdjacency, findNode, round } from "./utils.mjs";
 import { proofDebtFor } from "./quality.mjs";
 
+const PATH_SEARCH_NODE_BUDGET = 12000;
+const PATH_SEARCH_EDGE_BUDGET = 50000;
+const PATH_SEARCH_QUEUE_BUDGET = 12000;
+const PATH_SEARCH_NEIGHBOR_BUDGET = 400;
+
 export function pathSnapshot(snapshot, fromQuery, toQuery, maxDepth = 7, runtime = null) {
   const from = findNode(snapshot.nodes, fromQuery);
   const to = findNode(snapshot.nodes, toQuery);
@@ -20,7 +25,8 @@ export function pathSnapshot(snapshot, fromQuery, toQuery, maxDepth = 7, runtime
   const { adjacency, edgeLookup } = runtime?.adjacency && runtime?.edgeLookup
     ? runtime
     : buildAdjacency(snapshot.links);
-  const paths = findBoundedPaths(adjacency, from.id, to.id, maxDepth, 4);
+  const search = findBoundedPaths(adjacency, from.id, to.id, maxDepth, 4);
+  const paths = search.paths;
   const nodeMap = runtime?.nodeById || new Map(snapshot.nodes.map((node) => [node.id, node]));
   const rankedRoutes = paths
     .map((path, index) => ({ index, path, payload: pathPayload(path, nodeMap, edgeLookup) }))
@@ -35,7 +41,8 @@ export function pathSnapshot(snapshot, fromQuery, toQuery, maxDepth = 7, runtime
       from,
       to,
       maxDepth,
-      explored: countReachable(adjacency, from.id, maxDepth)
+      explored: search.explored,
+      budgetExceeded: search.budgetExceeded || undefined
     };
   }
 
@@ -97,16 +104,29 @@ function pathPayload(resolved, nodeMap, edgeLookup) {
 function findBoundedPaths(adjacency, fromId, toId, maxDepth, limit = 4) {
   const maxHops = Math.max(1, Math.floor(Number(maxDepth || 7)));
   const maxPaths = Math.max(1, Math.floor(Number(limit || 4)));
-  const queue = [[fromId]];
+  const queue = [{ id: fromId, path: [fromId] }];
+  const visitedDepth = new Map([[fromId, 0]]);
   const paths = [];
   let expansions = 0;
-  while (queue.length && paths.length < maxPaths && expansions < 6000) {
-    const path = queue.shift();
-    const current = path[path.length - 1];
+  let edgesScanned = 0;
+  let budgetExceeded = false;
+  while (queue.length && paths.length < maxPaths) {
+    if (expansions >= PATH_SEARCH_NODE_BUDGET || edgesScanned >= PATH_SEARCH_EDGE_BUDGET) {
+      budgetExceeded = true;
+      break;
+    }
+    const currentState = queue.shift();
+    const path = currentState.path;
+    const current = currentState.id;
     expansions += 1;
     if (path.length - 1 >= maxHops) continue;
-    const neighbors = [...(adjacency.get(current) || [])].sort();
+    const neighbors = boundedNeighbors(adjacency.get(current), toId);
     for (const neighbor of neighbors) {
+      edgesScanned += 1;
+      if (edgesScanned >= PATH_SEARCH_EDGE_BUDGET) {
+        budgetExceeded = true;
+        break;
+      }
       if (path.includes(neighbor)) continue;
       const nextPath = [...path, neighbor];
       if (neighbor === toId) {
@@ -114,26 +134,34 @@ function findBoundedPaths(adjacency, fromId, toId, maxDepth, limit = 4) {
         if (paths.length >= maxPaths) break;
         continue;
       }
-      queue.push(nextPath);
+      const nextDepth = nextPath.length - 1;
+      const previousDepth = visitedDepth.get(neighbor);
+      if (previousDepth !== undefined && previousDepth <= nextDepth) continue;
+      if (visitedDepth.size >= PATH_SEARCH_NODE_BUDGET || queue.length >= PATH_SEARCH_QUEUE_BUDGET) {
+        budgetExceeded = true;
+        break;
+      }
+      visitedDepth.set(neighbor, nextDepth);
+      queue.push({ id: neighbor, path: nextPath });
     }
+    if (budgetExceeded) break;
   }
-  return paths;
+  return {
+    paths,
+    explored: visitedDepth.size,
+    budgetExceeded
+  };
 }
 
-function countReachable(adjacency, fromId, maxDepth) {
-  const maxHops = Math.max(1, Math.floor(Number(maxDepth || 7)));
-  const queue = [{ id: fromId, depth: 0 }];
-  const visited = new Set([fromId]);
-  while (queue.length) {
-    const current = queue.shift();
-    if (current.depth >= maxHops) continue;
-    for (const neighbor of adjacency.get(current.id) || []) {
-      if (visited.has(neighbor)) continue;
-      visited.add(neighbor);
-      queue.push({ id: neighbor, depth: current.depth + 1 });
-    }
+function boundedNeighbors(neighborSet, toId) {
+  const neighbors = [...(neighborSet || [])].sort();
+  if (neighbors.length <= PATH_SEARCH_NEIGHBOR_BUDGET) return neighbors;
+  const bounded = neighbors.slice(0, PATH_SEARCH_NEIGHBOR_BUDGET);
+  if (neighborSet?.has(toId) && !bounded.includes(toId)) {
+    bounded[bounded.length - 1] = toId;
+    bounded.sort();
   }
-  return visited.size;
+  return bounded;
 }
 
 function scoreRoute(nodes, links) {

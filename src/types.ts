@@ -178,6 +178,7 @@ export type AtlasPathResult =
       missing?: string[];
       maxDepth?: number;
       explored?: number;
+      budgetExceeded?: boolean;
     };
 
 export type AtlasFocusResult = {
