@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import test from "node:test";
-import { buildDoctorReport, runUpdate } from "../server/cli-maintenance.mjs";
+import { buildDoctorReport, parseMaintenanceArgs, runUpdate } from "../server/cli-maintenance.mjs";
 import { createFixtureGraph } from "../server/fixture/create-fixture-graph.mjs";
 import { parsePageRecord } from "../server/logseq/parser.mjs";
 import { createBrainService, DEFAULT_SNAPSHOT_NODE_BUDGET } from "../server/service.mjs";
@@ -105,6 +105,12 @@ test("doctor reports a missing packaged static build as failed", () => {
   }
 });
 
+test("maintenance parser rejects ambiguous update modes and empty root values", () => {
+  assert.equal(parseMaintenanceArgs(["update", "--channel=beta"]).check, true);
+  assert.throws(() => parseMaintenanceArgs(["update", "--apply", "--dry-run"]), /only one/);
+  assert.throws(() => parseMaintenanceArgs(["doctor", "--root="]), /Missing value/);
+});
+
 test("update guidance and apply use the selected npm channel", () => {
   const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
   const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "living-atlas-update-channel-"));
@@ -113,7 +119,7 @@ test("update guidance and apply use the selected npm channel", () => {
   const npmBin = path.join(fakeBin, process.platform === "win32" ? "npm.cmd" : "npm");
   const modulePath = path.join(packageRoot, "node_modules", packageJson.name, "server", "brain-service.mjs");
   try {
-    fs.writeFileSync(npmBin, `#!/bin/sh\nprintf '%s\\n' "$@" > ${JSON.stringify(npmArgsPath)}\n`, { mode: 0o755 });
+    fs.writeFileSync(npmBin, `#!/bin/sh\nprintf 'npm progress should not pollute json\\n'\nprintf '%s\\n' "$@" > ${JSON.stringify(npmArgsPath)}\n`, { mode: 0o755 });
 
     const dryRunOutput = createWritableCapture();
     const dryRunStatus = runUpdate({
