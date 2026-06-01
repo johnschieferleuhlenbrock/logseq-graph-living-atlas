@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { DEFAULT_LOGSEQ_ROOT } from "./logseq/source-adapter.mjs";
 import { createBrainService } from "./service.mjs";
 import { createFixtureGraph } from "./fixture/create-fixture-graph.mjs";
+import { parseMaintenanceArgs, runDoctor, runUpdate } from "./cli-maintenance.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageJson = JSON.parse(fs.readFileSync(path.resolve(__dirname, "..", "package.json"), "utf8"));
@@ -23,6 +24,24 @@ export async function main(argv = []) {
   }
   if (args.version) {
     console.log(packageJson.version);
+    return;
+  }
+  if (args.command === "doctor") {
+    process.exitCode = runDoctor({
+      packageJson,
+      packageRoot: path.resolve(__dirname, ".."),
+      modulePath: fileURLToPath(import.meta.url),
+      options: args.maintenance
+    });
+    return;
+  }
+  if (args.command === "update") {
+    process.exitCode = runUpdate({
+      packageJson,
+      packageRoot: path.resolve(__dirname, ".."),
+      modulePath: fileURLToPath(import.meta.url),
+      options: args.maintenance
+    });
     return;
   }
 
@@ -124,14 +143,17 @@ function failStartup(error, debugPaths) {
   const message = String(error?.message || error || "Startup failed");
   console.error(`[living-atlas] ${message}`);
   console.error("[living-atlas] Expected --root to point at a Logseq graph folder containing pages/.");
-  console.error("[living-atlas] Try: living-atlas --root /path/to/logseq");
-  console.error("[living-atlas] Or run the public fixture: living-atlas --demo");
+  console.error("[living-atlas] Try: logseq-graph-living-atlas --root /path/to/logseq");
+  console.error("[living-atlas] Or run the public fixture: logseq-graph-living-atlas --demo");
   if (debugPaths) console.error(error?.stack || error);
   process.exitCode = 1;
 }
 
 function parseArgs(argv) {
   const parsed = {};
+  if (argv[0] === "doctor" || argv[0] === "update") {
+    return { command: argv[0], maintenance: parseMaintenanceArgs(argv) };
+  }
   const valueFlags = new Set(["root", "cache", "port", "static", "token", "allowed-origin"]);
   const booleanFlags = new Set([
     "watch",
@@ -166,12 +188,14 @@ function parseArgs(argv) {
 }
 
 function printHelp() {
-  console.log(`Living Atlas ${packageJson.version}
+  console.log(`logseq-graph-living-atlas ${packageJson.version}
 
 Usage:
-  living-atlas --root /path/to/logseq [options]
+  logseq-graph-living-atlas --root /path/to/logseq [options]
   npx logseq-graph-living-atlas --root /path/to/logseq
   npx logseq-graph-living-atlas --demo
+  logseq-graph-living-atlas doctor [--root /path/to/logseq] [--json]
+  logseq-graph-living-atlas update [--check|--dry-run|--apply] [--channel latest] [--json]
 
 Options:
   --root <path>             Logseq graph folder containing pages/. journals/ is optional.
@@ -192,10 +216,17 @@ Options:
   --version                 Print version.
   --help                    Print this help.
 
+Maintenance:
+  doctor                    Validate Node, package metadata, install mode, static build, and optional graph root.
+  update                    Check the npm release channel and print install-mode-aware update guidance.
+  update --apply            Apply only when the install mode is mutable and LOGSEQ_UPDATE_ALLOW_APPLY=1 is set.
+
 Examples:
   npx logseq-graph-living-atlas --demo
   npx logseq-graph-living-atlas --root ~/Documents/Logseq
-  living-atlas --root ~/Documents/Logseq --port 8787 --watch
+  logseq-graph-living-atlas --root ~/Documents/Logseq --port 8787 --watch
+  logseq-graph-living-atlas doctor --root ~/Documents/Logseq
+  logseq-graph-living-atlas update --check
   LIVING_ATLAS_TOKEN=<random-local-token> LIVING_ATLAS_ALLOWED_ORIGINS=http://127.0.0.1:5177 npm run dev:api -- --root ~/Documents/Logseq
 `);
 }
