@@ -31,6 +31,7 @@ export function parseMaintenanceArgs(argv) {
       options.channel = arg.slice("--channel=".length) || "latest";
     } else if (arg.startsWith("--root=")) {
       options.root = arg.slice("--root=".length);
+      if (!options.root) throw new Error("Missing value for --root.");
     } else if (arg === "--channel") {
       options.channel = readValue(argv, index, arg);
       index += 1;
@@ -41,6 +42,9 @@ export function parseMaintenanceArgs(argv) {
       throw new Error(`Unknown ${options.command} option: ${arg}`);
     }
   }
+  const modeFlags = [options.apply, options.check, options.dryRun].filter(Boolean).length;
+  if (modeFlags > 1) throw new Error("Use only one of --check, --dry-run, or --apply.");
+  if (!modeFlags) options.check = true;
   return options;
 }
 
@@ -100,7 +104,7 @@ export function runUpdate({ packageJson, packageRoot, modulePath, options, env =
   const wantsApply = Boolean(options.apply);
   if (wantsApply) {
     update.action = "apply";
-    const apply = applyUpdate({ packageName: packageJson.name, install, channel: options.channel, env });
+    const apply = applyUpdate({ packageName: packageJson.name, install, channel: options.channel, json: options.json, env });
     update.ok = apply.ok;
     update.applied = apply.applied;
     update.detail = apply.detail;
@@ -148,7 +152,7 @@ function resolveLatestVersion(packageName, channel, env) {
   }
 }
 
-function applyUpdate({ packageName, install, channel, env }) {
+function applyUpdate({ packageName, install, channel, json, env }) {
   const target = `${packageName}@${channel}`;
   if (install.mode === "source") {
     return {
@@ -173,7 +177,7 @@ function applyUpdate({ packageName, install, channel, env }) {
   }
   try {
     const npm = process.platform === "win32" ? "npm.cmd" : "npm";
-    execFileSync(npm, ["install", "-g", target], { env, stdio: "inherit", timeout: 120000 });
+    execFileSync(npm, ["install", "-g", target], { env, stdio: json ? "ignore" : "inherit", timeout: 120000 });
     return { ok: true, applied: true, detail: `Updated ${target} with npm install -g.` };
   } catch (error) {
     return { ok: false, applied: false, detail: `npm install -g failed: ${error?.message || error}` };
