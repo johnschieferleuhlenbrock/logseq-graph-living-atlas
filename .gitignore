@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.cache/
+.DS_Store
+docs/qa/
+.env
+.env.local
+.public-readiness.local.json
+*.log
+coverage/
+playwright-report/
+test-results/

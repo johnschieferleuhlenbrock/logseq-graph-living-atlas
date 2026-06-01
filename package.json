@@ -1,0 +1,102 @@
+{
+  "name": "logseq-graph-living-atlas",
+  "version": "0.1.0",
+  "description": "Local-only cinematic 3D atlas and read-only index service for Logseq markdown graphs.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "packageManager": "npm@10.8.2",
+  "keywords": [
+    "logseq",
+    "knowledge-graph",
+    "threejs",
+    "visualization",
+    "local-first"
+  ],
+  "homepage": "https://github.com/johnschieferleuhlenbrock/logseq-graph-living-atlas#readme",
+  "bugs": {
+    "url": "https://github.com/johnschieferleuhlenbrock/logseq-graph-living-atlas/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/johnschieferleuhlenbrock/logseq-graph-living-atlas.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "bin": {
+    "living-atlas": "./server/brain-service.mjs",
+    "logseq-graph-living-atlas": "./server/brain-service.mjs"
+  },
+  "files": [
+    "dist/",
+    "server/",
+    "docs/API.md",
+    "docs/ADAPTERS.md",
+    "docs/ARCHITECTURE.md",
+    "docs/CONCEPTS.md",
+    "docs/MCP.md",
+    "docs/RELEASE.md",
+    "docs/REPO_GUIDE.md",
+    "docs/TROUBLESHOOTING.md",
+    "docs/assets/living-atlas-demo.png",
+    "docs/assets/living-atlas-pathfinder.png",
+    "docs/assets/living-atlas-radar.png",
+    "docs/assets/living-atlas-source-detail.png",
+    "README.md",
+    "CONTRIBUTING.md",
+    "CODE_OF_CONDUCT.md",
+    "CHANGELOG.md",
+    "SECURITY.md",
+    "SUPPORT.md",
+    "MAINTAINERS.md",
+    "GOVERNANCE.md",
+    "ROADMAP.md",
+    ".env.example",
+    "LICENSE"
+  ],
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5177",
+    "dev:api": "node server/brain-service.mjs --watch --no-static --port 8787",
+    "build": "vite build",
+    "start": "npm run demo",
+    "serve": "node server/brain-service.mjs --watch --static dist --port 8787",
+    "serve:env": "npm run build && node --env-file=.env.local server/brain-service.mjs --watch --static dist --port 8787",
+    "demo": "npm run build && node scripts/demo.mjs",
+    "dev:fixture": "node scripts/dev-fixture.mjs",
+    "capture:demo": "npm run build && node scripts/capture-demo.mjs",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json --noEmit",
+    "check:runtime": "node scripts/runtime-check.mjs",
+    "test": "node --test tests/*.test.mjs && npm run test:frontend && npm run typecheck && npm run check:runtime && npm run build",
+    "test:frontend": "tsx --test tests/frontend/*.test.ts",
+    "test:ui": "npm run build && node tests/ui-smoke.mjs",
+    "test:ui:scale": "npm run build && node tests/ui-scale-smoke.mjs",
+    "eval": "node tests/scale-eval.mjs && node tests/service-scale-eval.mjs",
+    "eval:service:100k": "node tests/service-scale-eval.mjs --size=100000 --watch",
+    "smoke:mcp": "node scripts/mcp-compat-smoke.mjs",
+    "smoke:package": "node scripts/package-smoke.mjs",
+    "check:public": "node scripts/public-readiness.mjs",
+    "check:release": "node scripts/release-readiness.mjs",
+    "clean": "node scripts/clean.mjs",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run check:release && npm run validate && npm run smoke:package",
+    "validate": "npm test && npm run eval && npm run test:ui && npm run test:ui:scale && npm run check:public"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@types/three": "^0.181.0",
+    "@vitejs/plugin-react": "^5.0.4",
+    "playwright": "^1.60.0",
+    "pngjs": "^7.0.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "three": "^0.181.2",
+    "tsx": "^4.22.4",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.4"
+  }
+}

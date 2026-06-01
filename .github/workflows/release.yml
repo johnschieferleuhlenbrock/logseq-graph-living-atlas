@@ -1,0 +1,59 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish npm package
+    runs-on: ubuntu-latest
+    environment: npm
+    steps:
+      - name: Check out
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install
+        run: npm ci
+
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Validate
+        run: npm run validate
+
+      - name: Audit
+        run: npm audit --audit-level=moderate
+
+      - name: Package dry run
+        run: npm pack --dry-run
+
+      - name: Installed package smoke
+        run: npm run smoke:package
+
+      - name: Release readiness
+        env:
+          LIVING_ATLAS_ALLOW_ALREADY_PUBLISHED: "1"
+        run: npm run check:release
+
+      - name: Publish with provenance
+        run: |
+          if npm view "$npm_package_name@$npm_package_version" version --json >/dev/null 2>&1; then
+            echo "$npm_package_name@$npm_package_version is already published; skipping npm publish."
+            exit 0
+          fi
+          npm publish --access public --provenance
