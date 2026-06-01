@@ -1,0 +1,64 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish npm package
+    runs-on: ubuntu-latest
+    environment: npm
+    steps:
+      - name: Check out
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "24"
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Use npm with trusted publishing support
+        run: npm install -g npm@latest
+
+      - name: Install
+        run: npm ci
+
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Validate
+        run: npm run validate
+
+      - name: Audit
+        run: npm audit --audit-level=moderate
+
+      - name: Package dry run
+        run: npm pack --dry-run
+
+      - name: Installed package smoke
+        run: npm run smoke:package
+
+      - name: Release readiness
+        env:
+          LIVING_ATLAS_ALLOW_ALREADY_PUBLISHED: "1"
+        run: npm run check:release
+
+      - name: Publish with provenance
+        run: |
+          PACKAGE_NAME="$(node -p "require('./package.json').name")"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          if npm view "$PACKAGE_NAME@$PACKAGE_VERSION" version --json >/dev/null 2>&1; then
+            echo "$PACKAGE_NAME@$PACKAGE_VERSION is already published; skipping npm publish."
+            exit 0
+          fi
+          npm publish --access public

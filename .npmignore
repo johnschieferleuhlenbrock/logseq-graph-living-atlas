@@ -1,0 +1,12 @@
+node_modules/
+.cache/
+.git/
+.github/
+docs/qa/
+.env
+.env.local
+*.log
+coverage/
+playwright-report/
+test-results/
+*.tgz

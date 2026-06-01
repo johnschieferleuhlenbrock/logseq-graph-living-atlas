@@ -1,0 +1,55 @@
+name: Feature request
+description: Suggest a capability or workflow for Living Atlas.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What should Living Atlas help you understand or do?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed experience
+      description: Describe the UI, data contract, or workflow you want.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - 3D visualization
+        - Graph intelligence
+        - Logseq parsing
+        - Local service/API
+        - Documentation/onboarding
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: usefulness
+    attributes:
+      label: Useful outcome
+      description: What decision, cleanup, or exploration should become easier?
+      placeholder: "Example: find pages that connect two regions without exposing private graph content."
+    validations:
+      required: true
+  - type: textarea
+    id: data-contract
+    attributes:
+      label: Data contract
+      description: What graph-derived data would power this, and what should remain local or redacted?
+      placeholder: "Use fixture-safe labels, counts, links, timestamps, or redacted API examples."
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Public-safety checklist
+      options:
+        - label: This request can be discussed without real Logseq graph files or private screenshots.
+          required: true
+        - label: I understand direct graph writes are out of scope unless a future guarded MCP workflow is explicitly designed.
+          required: true

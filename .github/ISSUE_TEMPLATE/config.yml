@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Support and private-data boundaries
+    url: https://github.com/johnschieferleuhlenbrock/logseq-graph-living-atlas/blob/main/SUPPORT.md
+    about: Read before sharing logs, screenshots, graph payloads, or diagnostics.
+  - name: Security reports
+    url: https://github.com/johnschieferleuhlenbrock/logseq-graph-living-atlas/security/advisories/new
+    about: Report vulnerabilities privately when GitHub private reporting is available.

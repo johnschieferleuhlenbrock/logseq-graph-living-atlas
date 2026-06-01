@@ -1,0 +1,87 @@
+name: Bug report
+description: Report a reproducible issue without sharing private graph contents.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not attach real Logseq graph files, private screenshots, cache files, or notes. Use the generated fixture demo when possible.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction
+      description: List exact steps, preferably against `npm run demo`.
+      placeholder: |
+        1. Run `npm run demo`
+        2. Open http://127.0.0.1:8787
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: Living Atlas version, npm package version, or commit SHA.
+      placeholder: "0.1.0 or abc1234"
+    validations:
+      required: true
+  - type: input
+    id: node
+    attributes:
+      label: Node.js version
+      placeholder: "20.19.0"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: "macOS 15.5, Windows 11, Ubuntu 24.04"
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and WebGL status
+      description: Include browser version and whether the renderer fallback appeared.
+      placeholder: "Chrome 125, WebGL on"
+  - type: input
+    id: command
+    attributes:
+      label: Start command
+      description: Redact graph paths and tokens.
+      placeholder: "npm run demo"
+    validations:
+      required: true
+  - type: dropdown
+    id: data-source
+    attributes:
+      label: Data source
+      options:
+        - Generated demo fixture
+        - Real graph, reproduced with redacted details
+        - Real graph only, cannot share data
+    validations:
+      required: true
+  - type: textarea
+    id: redacted-health
+    attributes:
+      label: Redacted diagnostics
+      description: Optional. Paste redacted `/api/health?redact=1` or `/api/snapshot?redact=1` output only.
+      render: json
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
