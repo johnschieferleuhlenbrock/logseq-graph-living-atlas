@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.1 - 2026-06-01
+
+Security and release hardening patch.
+
+- Reject Logseq `pages` and `journals` source directories that resolve outside the selected graph root.
+- Skip nested source symlinks and realpath-check discovered markdown before reading.
+- Bound pathfinding with node, edge, queue, and neighbor budgets so dense no-path searches stay responsive.
+- Report bounded path-search failures clearly in the pathfinder UI.
+- Stop persisting graph-derived review handoff prose and top-level cluster ids in browser `localStorage`.
+- Allow public-readiness CI to validate protected pull requests targeting `main` while preserving `main`-only release discipline.
+
 ## 0.1.0 - 2026-06-01
 
 Initial public-ready package.
